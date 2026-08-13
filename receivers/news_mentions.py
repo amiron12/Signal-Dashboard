@@ -3,8 +3,8 @@ from time import mktime
 from urllib.parse import quote
 
 import feedparser
-import requests
 
+from core.fetch import fetch
 from core.models import SignalEvent
 from core.receiver import Receiver
 
@@ -19,8 +19,7 @@ class NewsMentionsReceiver(Receiver):
         feed_url = f"https://news.google.com/rss/search?q={quote(company)}"
 
         try:
-            response = requests.get(feed_url, timeout=10)
-            response.raise_for_status()
+            response, _elapsed_ms = fetch(feed_url)
             parsed = feedparser.parse(response.content)
             if parsed.bozo and not parsed.entries:
                 raise parsed.bozo_exception or RuntimeError("feed parse failed")

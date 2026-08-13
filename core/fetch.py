@@ -9,10 +9,13 @@ REQUEST_DELAY_SECONDS = 0.5
 REQUEST_TIMEOUT_SECONDS = 10
 
 
-def fetch_page(url: str) -> tuple[requests.Response, float]:
-    """Fetch url with a real User-Agent, respecting robots.txt.
-    Returns (response, elapsed_ms). Raises if fetch fails or is disallowed."""
-    _check_robots_allowed(url)
+def fetch(url: str) -> tuple[requests.Response, float]:
+    """Fetch url with a real User-Agent and a small delay before the request.
+    Returns (response, elapsed_ms). Raises if the request fails.
+
+    Use this for hitting a documented feed/API endpoint (e.g. Google News
+    RSS). Use fetch_page() instead when crawling a page on someone's site —
+    it adds a robots.txt check on top of this."""
     time.sleep(REQUEST_DELAY_SECONDS)
 
     start = time.perf_counter()
@@ -23,6 +26,13 @@ def fetch_page(url: str) -> tuple[requests.Response, float]:
 
     response.raise_for_status()
     return response, elapsed_ms
+
+
+def fetch_page(url: str) -> tuple[requests.Response, float]:
+    """Fetch a page for crawling: same as fetch(), but checks robots.txt
+    first. Raises if fetch fails or robots.txt disallows it."""
+    _check_robots_allowed(url)
+    return fetch(url)
 
 
 def _check_robots_allowed(url: str) -> None:
