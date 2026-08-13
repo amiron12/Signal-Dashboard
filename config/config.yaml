@@ -1,0 +1,21 @@
+company:
+  name: "monday.com"
+  url: "https://monday.com"
+
+receivers:
+  seo_onpage:
+    enabled: true
+    schedule: "0 9 * * *"      # cron: daily 9am
+
+  geo_readiness:
+    enabled: true
+    schedule: "0 9 * * *"
+
+  news_mentions:
+    enabled: true
+    schedule: "0 9 * * *"
+    lookback_days: 7
+
+  social_facebook:
+    enabled: false             # optional receiver, off for now
+    schedule: "0 9 * * *"
