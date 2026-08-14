@@ -2,12 +2,18 @@ from datetime import datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, HttpUrl
 
 from core import storage
 from core.config import load_config
 from core.models import SignalEvent
 from receivers.news_mentions import NewsMentionsReceiver
 from receivers.seo_onpage import SeoOnpageReceiver
+
+
+class CompanyUpdate(BaseModel):
+    name: str
+    url: HttpUrl
 
 app = FastAPI()
 
@@ -29,8 +35,12 @@ def _build_receivers(config: dict) -> list:
 
 @app.get("/company")
 def get_company():
-    config = load_config()
-    return config["company"]
+    return storage.get_company()
+
+
+@app.post("/company")
+def set_company(update: CompanyUpdate):
+    return storage.set_company(update.name, str(update.url))
 
 
 @app.get("/history", response_model=list[SignalEvent])
@@ -41,8 +51,9 @@ def get_history(company: str, receiver: str | None = None):
 @app.post("/scan", response_model=list[SignalEvent])
 def scan():
     config = load_config()
-    company = config["company"]["name"]
-    url = config["company"]["url"]
+    tracked = storage.get_company()
+    company = tracked["name"]
+    url = tracked["url"]
 
     all_events = []
     for receiver in _build_receivers(config):

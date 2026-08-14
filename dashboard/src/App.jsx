@@ -1,26 +1,49 @@
 import { useEffect, useState } from "react";
-import { getCompany, scan } from "./api.js";
+import { getCompany, setCompany as saveCompany, scan } from "./api.js";
 import NewsMentionsCard from "./NewsMentionsCard.jsx";
 import SeoOnpageCard from "./SeoOnpageCard.jsx";
 
 export default function App() {
   const [company, setCompany] = useState(null);
+  const [nameInput, setNameInput] = useState("");
+  const [urlInput, setUrlInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
   const [scanning, setScanning] = useState(false);
-  const [error, setError] = useState(null);
+  const [scanError, setScanError] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    getCompany().then(setCompany);
+    getCompany().then((c) => {
+      setCompany(c);
+      setNameInput(c.name);
+      setUrlInput(c.url);
+    });
   }, []);
+
+  async function handleSaveCompany(e) {
+    e.preventDefault();
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const updated = await saveCompany(nameInput, urlInput);
+      setCompany(updated);
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      setSaveError(String(err.message ?? err));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function handleScan() {
     setScanning(true);
-    setError(null);
+    setScanError(null);
     try {
       await scan();
       setRefreshKey((k) => k + 1);
     } catch (e) {
-      setError(String(e));
+      setScanError(String(e));
     } finally {
       setScanning(false);
     }
@@ -30,17 +53,33 @@ export default function App() {
     <div style={{ fontFamily: "sans-serif", maxWidth: 700, margin: "2rem auto" }}>
       <h1>Signal Dashboard</h1>
 
-      {company && (
-        <p>
-          Tracking: <strong>{company.name}</strong> ({company.url})
-        </p>
-      )}
+      <form
+        onSubmit={handleSaveCompany}
+        style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
+      >
+        <input
+          value={nameInput}
+          onChange={(e) => setNameInput(e.target.value)}
+          placeholder="Company name"
+        />
+        <input
+          value={urlInput}
+          onChange={(e) => setUrlInput(e.target.value)}
+          placeholder="https://company.com"
+          style={{ flex: 1 }}
+        />
+        <button type="submit" disabled={saving}>
+          {saving ? "Saving..." : "Save"}
+        </button>
+      </form>
 
-      <button onClick={handleScan} disabled={scanning}>
+      {saveError && <p style={{ color: "red" }}>{saveError}</p>}
+
+      <button onClick={handleScan} disabled={scanning} style={{ marginTop: "1rem" }}>
         {scanning ? "Scanning..." : "Scan now"}
       </button>
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {scanError && <p style={{ color: "red" }}>{scanError}</p>}
 
       <NewsMentionsCard company={company?.name} refreshKey={refreshKey} />
       <SeoOnpageCard company={company?.name} refreshKey={refreshKey} />

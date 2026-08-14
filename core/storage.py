@@ -3,6 +3,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+from .config import load_config
 from .models import SignalEvent
 
 DB_PATH = Path("signals.db")
@@ -20,11 +21,60 @@ CREATE TABLE IF NOT EXISTS events (
 );
 """
 
+_SETTINGS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    company_name TEXT NOT NULL,
+    company_url TEXT NOT NULL
+);
+"""
+
 
 def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.execute(_SCHEMA)
+    conn.execute(_SETTINGS_SCHEMA)
     return conn
+
+
+def get_company() -> dict:
+    """Returns {"name": ..., "url": ...}. Seeds from config.yaml's company
+    section on first call, if nothing has been set via set_company() yet."""
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT company_name, company_url FROM settings WHERE id = 1"
+        ).fetchone()
+        if row is not None:
+            return {"name": row[0], "url": row[1]}
+
+        default = load_config()["company"]
+        conn.execute(
+            "INSERT INTO settings (id, company_name, company_url) VALUES (1, ?, ?)",
+            (default["name"], default["url"]),
+        )
+        conn.commit()
+        return {"name": default["name"], "url": default["url"]}
+    finally:
+        conn.close()
+
+
+def set_company(name: str, url: str) -> dict:
+    conn = _connect()
+    try:
+        conn.execute(
+            """
+            INSERT INTO settings (id, company_name, company_url) VALUES (1, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                company_name = excluded.company_name,
+                company_url = excluded.company_url
+            """,
+            (name, url),
+        )
+        conn.commit()
+        return {"name": name, "url": url}
+    finally:
+        conn.close()
 
 
 def save_event(event: SignalEvent) -> None:
