@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getCompany, setCompany as saveCompany, scan } from "./api.js";
 import NewsMentionsCard from "./NewsMentionsCard.jsx";
 import SeoOnpageCard from "./SeoOnpageCard.jsx";
+import GeoReadinessCard from "./GeoReadinessCard.jsx";
 
 export default function App() {
   const [company, setCompany] = useState(null);
@@ -83,6 +84,7 @@ export default function App() {
 
       <NewsMentionsCard company={company?.name} refreshKey={refreshKey} />
       <SeoOnpageCard company={company?.name} refreshKey={refreshKey} />
+      <GeoReadinessCard company={company?.name} refreshKey={refreshKey} />
     </div>
   );
 }

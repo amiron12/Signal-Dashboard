@@ -7,6 +7,7 @@ from pydantic import BaseModel, HttpUrl
 from core import storage
 from core.config import load_config
 from core.models import SignalEvent
+from receivers.geo_readiness import GeoReadinessReceiver
 from receivers.news_mentions import NewsMentionsReceiver
 from receivers.seo_onpage import SeoOnpageReceiver
 
@@ -30,6 +31,7 @@ def _build_receivers(config: dict) -> list:
     return [
         NewsMentionsReceiver(lookback_days=lookback_days),
         SeoOnpageReceiver(),
+        GeoReadinessReceiver(),
     ]
 
 
