@@ -19,22 +19,18 @@ FAQ_PHRASES = ("faq", "frequently asked questions")
 # sitemap_scan_truncated says so rather than silently undercounting.
 MAX_SITEMAPS_READ = 10
 
-# The page types answer engines actually quote from. Marketing pages rarely
-# get cited; docs, glossaries and comparisons do.
+# The sampling frame: the page types answer engines actually quote from.
+# Marketing pages rarely get cited; docs, FAQs and blog posts do. These
+# buckets exist to pick which pages get fetched below — nothing counts them.
 #
 # A marker must match a whole path SEGMENT, not appear anywhere in the path.
 # Substring matching put a blog post called "help-steer-teams-through-the-
-# covid-19-crisis" in docs_support, which is indefensible. The cost of the
-# strict rule is that slug-level topicality ("what-is-mcp-explained" reads
-# like a glossary entry) no longer counts — that's topic classification,
-# a different signal from what sections a site has.
+# covid-19-crisis" in docs_support, which is indefensible.
 CONTENT_TYPES = {
     "docs_support": ("docs", "support", "help", "hc"),
     "blog": ("blog",),
     "faq": ("faq", "faqs"),
-    "glossary": ("glossary", "wiki"),
     "templates": ("templates",),
-    "comparison": ("compare", "alternatives"),
 }
 
 # The markup answer engines actually consume. FAQPage never travels alone —
@@ -68,9 +64,14 @@ def _site_root(target_url: str) -> str:
 
 
 def check_schema_types(soup: BeautifulSoup, company: str, target_url: str) -> dict:
-    """Which JSON-LD @type values the page declares (FAQPage, Article, ...).
-    Types are what an answer engine keys off, so we collect the values
-    rather than just presence like seo_onpage's jsonld_present."""
+    """Which JSON-LD @type values a page declares (FAQPage, Article, ...).
+    Types are what an answer engine keys off, so we collect the values rather
+    than just presence like seo_onpage's jsonld_present.
+
+    No longer a check in its own right: run against the homepage it only ever
+    reported Organization/WebSite/SoftwareApplication, none of which an answer
+    engine can quote. It's now the per-page helper behind
+    `answer_schema_pages`, applied to the sampled content pages instead."""
     types = set()
     for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
         try:
@@ -99,7 +100,12 @@ def _collect_types(data) -> list[str]:
 
 
 def check_faq_headings(soup: BeautifulSoup, company: str, target_url: str) -> dict:
-    """Headings that read as questions — the shape answer engines quote from."""
+    """Headings that read as questions — the shape answer engines quote from.
+
+    Like check_schema_types, this is a per-page helper rather than a check of
+    its own: the homepage is the one page that never carries Q&A, so run
+    there it reported 0 for a site whose /trustcenter/faqs has nine
+    questions. It runs across the sampled content pages instead."""
     count = 0
     for heading in soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"]):
         text = heading.get_text(strip=True).lower()
@@ -181,31 +187,24 @@ def _parse_lastmods(sitemap: BeautifulSoup) -> list[datetime]:
 
 
 def check_sitemap(soup: BeautifulSoup, company: str, target_url: str) -> dict:
-    """Size, freshness and shape of the indexable surface. Freshness is a
-    distribution rather than "newest page", which a single touched page
-    would otherwise make look healthy. Both freshness signals are None when
-    the sitemap carries no <lastmod> at all — that's monday.com's case."""
+    """Size and freshness of the indexable surface. `pages_updated_last_30d`
+    is None when the sitemap carries no <lastmod> at all — that's
+    monday.com's case."""
     urls, dates, files_read, truncated = _read_sitemaps(_site_root(target_url))
 
     now = datetime.now(timezone.utc)
-    fresh = stale_pct = None
+    fresh = None
     if dates:
         fresh = sum(1 for d in dates if (now - d).days <= 30)
-        # Share of *dated* entries that are stale, not of all URLs.
-        stale_pct = round(
-            sum(1 for d in dates if (now - d).days > 365) / len(dates) * 100, 1
-        )
 
     return {
         "sitemap_url_count": len(urls),
         "sitemap_files_read": files_read,
         "sitemap_scan_truncated": truncated,
         "pages_updated_last_30d": fresh,
-        "pct_stale_over_1y": stale_pct,
-        "content_type_coverage": _coverage(urls),
         # Sampling needs the URL list, so it rides along with the walk rather
         # than being its own check — a second check would mean a second walk.
-        **_sampled_schema_signals(urls),
+        **_sampled_page_signals(urls),
     }
 
 
@@ -222,43 +221,35 @@ def _sample_urls(urls: list[str]) -> list[str]:
     return list(dict.fromkeys(picks))  # a URL can match two buckets
 
 
-def _sampled_schema_signals(urls: list[str]) -> dict:
+def _sampled_page_signals(urls: list[str]) -> dict:
     """Does the company's answer-oriented content carry the markup answer
-    engines read? The homepage almost never does — monday.com's FAQPage is
-    on /pricing and its Article markup is on blog posts — so this looks at
-    the content pages instead."""
+    engines read, and does it read as Q&A at all? The homepage almost never
+    does — monday.com's FAQPage is on /w/faqs and its Article markup is on
+    blog posts — so both questions are asked of the content pages instead.
+    Each page is fetched once and both checks run off the same soup."""
     found = {schema_type: 0 for schema_type in ANSWER_ENGINE_TYPES}
-    fetched = 0
-    pages_with_any = 0
+    faq_headings = 0
 
     for url in _sample_urls(urls):
         try:
             response, _elapsed_ms = fetch_page(url)
         except Exception:
             continue  # one dead sampled page shouldn't sink the sample
-        fetched += 1
 
         page = BeautifulSoup(response.content, "html.parser")
         types = set(check_schema_types(page, "", url)["schema_types_found"])
-        hits = [t for t in ANSWER_ENGINE_TYPES if t in types]
-        for schema_type in hits:
-            found[schema_type] += 1
-        if hits:
-            pages_with_any += 1
+        for schema_type in ANSWER_ENGINE_TYPES:
+            if schema_type in types:
+                found[schema_type] += 1
+        # Every question across the sample, not the number of pages carrying
+        # them: one page with nine questions is nine answerable things.
+        faq_headings += check_faq_headings(page, "", url)["faq_heading_count"]
 
     return {
-        "pages_sampled": fetched,
+        "faq_headings_sampled": faq_headings,
+        # Per-type page counts. The wall reads these as present/absent, one
+        # cube per type; the counts are what the sample actually saw.
         "answer_schema_pages": found,
-        "pct_sampled_with_answer_schema": (
-            round(pages_with_any / fetched * 100, 1) if fetched else None
-        ),
-    }
-
-
-def _coverage(urls: list[str]) -> dict:
-    return {
-        label: sum(1 for u in urls if _in_bucket(u, markers))
-        for label, markers in CONTENT_TYPES.items()
     }
 
 
@@ -280,8 +271,6 @@ def check_wikipedia(soup: BeautifulSoup, company: str, target_url: str) -> dict:
 # keys it produces. Every check takes the same arguments and ignores what it
 # doesn't need; the keys are what gets nulled out if the check fails.
 CHECKS = [
-    (check_schema_types, ["schema_types_found"]),
-    (check_faq_headings, ["faq_heading_count"]),
     (check_llms_txt, ["llms_txt_present"]),
     (
         check_sitemap,
@@ -290,11 +279,8 @@ CHECKS = [
             "sitemap_files_read",
             "sitemap_scan_truncated",
             "pages_updated_last_30d",
-            "pct_stale_over_1y",
-            "content_type_coverage",
-            "pages_sampled",
+            "faq_headings_sampled",
             "answer_schema_pages",
-            "pct_sampled_with_answer_schema",
         ],
     ),
     (check_wikipedia, ["wikipedia_entry_exists"]),

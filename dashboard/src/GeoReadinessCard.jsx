@@ -1,138 +1,66 @@
-import { useEffect, useState } from "react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
-import { getHistory } from "./api.js";
+import { Cube, CubeGrid, scored } from "./Cube.jsx";
 
-// One row per signal to display, same pattern as SeoOnpageCard. `format` is
-// optional — it only runs when the signal isn't null, so it never has to
-// handle the "this check failed" case itself.
-const SIGNAL_ROWS = [
-  {
-    key: "schema_types_found",
-    label: "Schema types found",
-    format: (v) => (v.length > 0 ? v.join(", ") : "none"),
-  },
-  { key: "faq_heading_count", label: "FAQ-style headings" },
-  { key: "llms_txt_present", label: "llms.txt present" },
-  { key: "wikipedia_entry_exists", label: "Wikipedia entry exists" },
-  {
-    key: "sitemap_url_count",
-    label: "Pages in sitemap",
-    format: (v) => v.toLocaleString(),
-  },
-  { key: "pages_updated_last_30d", label: "Pages updated (last 30d)" },
-  { key: "pct_stale_over_1y", label: "Dated pages over a year old", suffix: "%" },
-  {
-    key: "content_type_coverage",
-    label: "Content types",
-    format: (v) =>
-      Object.entries(v)
-        .filter(([, count]) => count > 0)
-        .map(([label, count]) => `${label} ${count}`)
-        .join(", ") || "none",
-  },
-  {
-    key: "answer_schema_pages",
-    label: "Answer-engine markup (sampled pages)",
-    format: (v) =>
-      Object.entries(v)
-        .map(([type, count]) => `${type} ${count}`)
-        .join(", "),
-  },
-  {
-    key: "pct_sampled_with_answer_schema",
-    label: "Sampled pages with any of it",
-    suffix: "%",
-  },
-  { key: "pages_sampled", label: "Pages sampled" },
-];
-
-// A signal is null when its check failed, or when the site genuinely has
-// nothing to report (e.g. a sitemap with no <lastmod>). Both read as unknown.
-function formatSignal(value, format, suffix) {
-  if (value === null || value === undefined) return "unknown";
-  return (format ? format(value) : String(value)) + (suffix ?? "");
+// Binary check: the color is the whole answer, so the cube shows its label
+// only — unless the check failed, which has to say so.
+function binary(label, value) {
+  if (value === null || value === undefined) return { label, value: "unknown" };
+  return { label, status: value ? "good" : "bad" };
 }
 
-export default function GeoReadinessCard({ company, refreshKey }) {
-  const [history, setHistory] = useState([]);
+// The only three Schema.org types this dashboard cares about — the ones
+// answer engines quote. One cube each: did the sampled content pages carry
+// it or not.
+const ANSWER_TYPES = ["Article", "FAQPage", "HowTo"];
 
-  useEffect(() => {
-    if (!company) return;
-    getHistory(company, "geo_readiness").then(setHistory);
-  }, [company, refreshKey]);
+function schemaTypeCube(type, byType) {
+  return binary(type, byType ? (byType[type] ?? 0) > 0 : null);
+}
 
+// Same signal keys as the old table — `scored` handles the null case for all
+// of them, so no formatter here has to think about a failed check.
+function geoCubes(s) {
+  return [
+    ...ANSWER_TYPES.map((t) => schemaTypeCube(t, s.answer_schema_pages)),
+    scored("Q&A headings", s.faq_headings_sampled, (v) => v, (v) =>
+      v >= 1 ? "good" : "bad"
+    ),
+    binary("llms.txt present", s.llms_txt_present),
+    binary("Wikipedia entry", s.wikipedia_entry_exists),
+    scored("Pages in sitemap", s.sitemap_url_count, (v) => v.toLocaleString()),
+    scored("Updated (30d)", s.pages_updated_last_30d, (v) => v.toLocaleString()),
+  ];
+}
+
+export default function GeoReadinessCard({ history }) {
   const latest = history.length > 0 ? history[history.length - 1] : null;
 
-  // Charting answer-engine markup coverage: it's the point of this receiver.
-  // Runs where the sample came back empty are dropped rather than plotted as
-  // 0 — "we measured nothing" isn't the same as "the site has nothing".
-  const chartData = history
-    .filter((e) => e.status === "ok")
-    .filter((e) => e.signals.pct_sampled_with_answer_schema != null)
-    .map((e) => ({
-      timestamp: new Date(e.timestamp).toLocaleString(),
-      pct_sampled_with_answer_schema: e.signals.pct_sampled_with_answer_schema,
-    }));
-
   return (
-    <section style={{ marginTop: "2rem" }}>
-      <h2>GEO readiness</h2>
+    <section>
+      <div className="band-kicker">GEO readiness</div>
 
-      {!latest && <p>No runs yet. Click "Scan now".</p>}
+      {!latest && <p className="band-note">No runs yet. Click "Scan now".</p>}
 
       {latest && latest.status === "error" && (
-        <p style={{ color: "red" }}>Last run failed: {latest.error_message}</p>
-      )}
-
-      {latest && latest.status === "ok" && (
-        <table style={{ borderCollapse: "collapse" }}>
-          <tbody>
-            {SIGNAL_ROWS.map(({ key, label, format, suffix }) => (
-              <tr key={key}>
-                <td style={{ padding: "0.25rem 1rem 0.25rem 0", color: "#555" }}>
-                  {label}
-                </td>
-                <td style={{ padding: "0.25rem 0" }}>
-                  {formatSignal(latest.signals[key], format, suffix)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      {latest?.signals?.sitemap_scan_truncated && (
-        <p style={{ color: "#888", fontSize: "0.85rem" }}>
-          Stopped after reading {latest.signals.sitemap_files_read} sitemap files
-          — the counts above are a lower bound.
+        <p className="band-note" style={{ color: "var(--status-bad)" }}>
+          Last run failed: {latest.error_message}
         </p>
       )}
 
-      {chartData.length > 1 && (
-        <div>
-          <h3>Answer-engine markup coverage over time</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="timestamp" />
-              <YAxis allowDecimals={false} />
-              <Tooltip />
-              <Line
-                type="monotone"
-                dataKey="pct_sampled_with_answer_schema"
-                stroke="#c026d3"
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+      {latest && latest.status === "ok" && (
+        <>
+          <CubeGrid>
+            {geoCubes(latest.signals).map((c) => (
+              <Cube key={c.label} {...c} />
+            ))}
+          </CubeGrid>
+
+          {latest.signals.sitemap_scan_truncated && (
+            <p className="band-note">
+              Sitemap scan stopped after {latest.signals.sitemap_files_read} files
+              — the counts above are a lower bound.
+            </p>
+          )}
+        </>
       )}
     </section>
   );

@@ -1,0 +1,76 @@
+/* Signal Wall — everything this screen adds on top of industry-styles.css.
+   Tokens all come from that file; the three status colors below are the only
+   new ones (solid-fill cubes with white text are the deliberate exception to
+   the design system's "cards are transparent line drawings" rule). */
+
+:root {
+  --status-good: #5a8f70;
+  --status-bad: #a35c52;
+  --status-warn: #8a6a30;
+}
+
+body { margin: 0; background: var(--color-bg); }
+a { color: var(--color-accent-700); }
+a:hover { color: var(--color-accent-900); }
+
+/* — page frame — */
+.wall { max-width: 1400px; margin: 0 auto; padding-bottom: var(--space-8); }
+.nav { border-bottom: 1px solid var(--color-divider); }
+.nav-form { display: flex; gap: var(--space-2); align-items: center; flex: 1; margin: 0 var(--space-4); }
+.wall-grid {
+  display: grid; grid-template-columns: 2.1fr 1fr; gap: var(--space-4);
+  padding: var(--space-4); align-items: start;
+}
+.wall-bands { display: flex; flex-direction: column; gap: var(--space-8); }
+
+/* — cube bands — */
+.band-kicker {
+  font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--color-accent-700); margin-bottom: var(--space-2);
+}
+.band-note { color: var(--color-neutral-700); font-size: 12px; margin: var(--space-2) 0 0; }
+.cube-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-2); }
+.cube {
+  display: flex; flex-direction: column; justify-content: space-between;
+  min-height: 92px; padding: var(--space-2) var(--space-3); position: relative;
+}
+.cube-label {
+  font-family: var(--font-body); font-size: 11px; letter-spacing: 0.03em;
+  text-transform: uppercase; color: var(--color-neutral-700);
+}
+.cube-label-only { align-self: center; margin: auto 0; font-size: 13px; }
+.cube-value { font-family: var(--font-heading); font-size: 28px; line-height: 1.1; font-weight: 600; }
+.cube-sub { font-family: var(--font-body); font-size: 13px; color: var(--color-neutral-700); }
+.cube-solid .cube-label { color: rgba(255, 255, 255, 0.85); }
+.cube-solid .cube-sub { color: rgba(255, 255, 255, 0.85); }
+.cube-solid .cube-value { color: #fff; }
+
+/* — news panel — */
+.news-count { display: flex; align-items: baseline; gap: var(--space-2); margin-bottom: var(--space-3); }
+.news-count .cube-label { text-transform: none; letter-spacing: 0; }
+/* A week of mentions can run to dozens of headlines; the panel scrolls rather
+   than stretching the page past the cube bands beside it. */
+.news-list { display: flex; flex-direction: column; gap: var(--space-2); max-height: 560px; overflow-y: auto; }
+.news-item { border-top: 1px solid var(--color-neutral-300); padding-top: var(--space-2); }
+.news-item a { font-size: 13px; text-decoration: none; }
+.news-date { color: var(--color-neutral-700); font-size: 11px; margin-top: 2px; }
+
+/* — trend — */
+.trend { padding: 0 var(--space-4); }
+.trend-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-2); }
+.trend-head .band-kicker { margin-bottom: 0; }
+/* .seg-opt is written for a label wrapping a radio; these are buttons, so the
+   checked styling comes from .active instead. */
+button.seg-opt { font-family: var(--font-body); color: inherit; background: transparent; border: 0; }
+.seg-opt.active { background: var(--color-accent); color: var(--color-bg); }
+
+/* recharts puts `stroke` on the SVG as a presentation attribute, and those
+   can't resolve a var() — so the line takes its accent from here instead.
+   (The prop is still passed: the tooltip reads it as an inline style, where
+   var() does work.) */
+.trend .recharts-line-curve, .trend .recharts-line-dot { stroke: var(--color-accent-700); }
+.trend .recharts-cartesian-axis-tick text {
+  fill: var(--color-neutral-700); font-family: var(--font-body); font-size: 11px;
+}
+
+.error { color: var(--status-bad); font-size: 13px; margin: 0 var(--space-4); }

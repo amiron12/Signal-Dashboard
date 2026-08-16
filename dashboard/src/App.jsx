@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
-import { getCompany, setCompany as saveCompany, scan } from "./api.js";
+import { getCompany, setCompany as saveCompany, scan, getHistory } from "./api.js";
 import NewsMentionsCard from "./NewsMentionsCard.jsx";
 import SeoOnpageCard from "./SeoOnpageCard.jsx";
 import GeoReadinessCard from "./GeoReadinessCard.jsx";
+import TrendSection from "./TrendSection.jsx";
+
+// History is fetched here rather than per card: the trend chart switches
+// between all three series without refetching, so one load covers everything.
+const RECEIVERS = ["seo_onpage", "geo_readiness", "news_mentions"];
 
 export default function App() {
   const [company, setCompany] = useState(null);
@@ -13,6 +18,7 @@ export default function App() {
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [histories, setHistories] = useState({});
 
   useEffect(() => {
     getCompany().then((c) => {
@@ -21,6 +27,13 @@ export default function App() {
       setUrlInput(c.url);
     });
   }, []);
+
+  useEffect(() => {
+    if (!company?.name) return;
+    Promise.all(RECEIVERS.map((r) => getHistory(company.name, r))).then((results) =>
+      setHistories(Object.fromEntries(RECEIVERS.map((r, i) => [r, results[i]])))
+    );
+  }, [company?.name, refreshKey]);
 
   async function handleSaveCompany(e) {
     e.preventDefault();
@@ -51,40 +64,44 @@ export default function App() {
   }
 
   return (
-    <div style={{ fontFamily: "sans-serif", maxWidth: 700, margin: "2rem auto" }}>
-      <h1>Signal Dashboard</h1>
-
-      <form
-        onSubmit={handleSaveCompany}
-        style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
-      >
-        <input
-          value={nameInput}
-          onChange={(e) => setNameInput(e.target.value)}
-          placeholder="Company name"
-        />
-        <input
-          value={urlInput}
-          onChange={(e) => setUrlInput(e.target.value)}
-          placeholder="https://company.com"
-          style={{ flex: 1 }}
-        />
-        <button type="submit" disabled={saving}>
-          {saving ? "Saving..." : "Save"}
+    <div className="wall">
+      <nav className="nav">
+        <div className="nav-brand">Signal Wall</div>
+        <form className="nav-form" onSubmit={handleSaveCompany}>
+          <input
+            className="input"
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            placeholder="Company name"
+            style={{ width: 160 }}
+          />
+          <input
+            className="input"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            placeholder="https://company.com"
+          />
+          <button type="submit" className="btn btn-secondary" disabled={saving}>
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </form>
+        <button className="btn btn-primary" onClick={handleScan} disabled={scanning}>
+          {scanning ? "Scanning…" : "Scan now"}
         </button>
-      </form>
+      </nav>
 
-      {saveError && <p style={{ color: "red" }}>{saveError}</p>}
+      {saveError && <p className="error">{saveError}</p>}
+      {scanError && <p className="error">{scanError}</p>}
 
-      <button onClick={handleScan} disabled={scanning} style={{ marginTop: "1rem" }}>
-        {scanning ? "Scanning..." : "Scan now"}
-      </button>
+      <div className="wall-grid">
+        <div className="wall-bands">
+          <SeoOnpageCard history={histories.seo_onpage ?? []} />
+          <GeoReadinessCard history={histories.geo_readiness ?? []} />
+        </div>
+        <NewsMentionsCard history={histories.news_mentions ?? []} />
+      </div>
 
-      {scanError && <p style={{ color: "red" }}>{scanError}</p>}
-
-      <NewsMentionsCard company={company?.name} refreshKey={refreshKey} />
-      <SeoOnpageCard company={company?.name} refreshKey={refreshKey} />
-      <GeoReadinessCard company={company?.name} refreshKey={refreshKey} />
+      <TrendSection histories={histories} />
     </div>
   );
 }

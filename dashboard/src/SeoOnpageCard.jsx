@@ -1,86 +1,63 @@
-import { useEffect, useState } from "react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
-import { getHistory } from "./api.js";
+import { Cube, CubeGrid, higherIsBetter, lowerIsBetter } from "./Cube.jsx";
 
-// One row per signal to display. Add a new signal to the receiver, then add
-// a row here to show it — same "list of small pieces" pattern as the backend.
-const SIGNAL_ROWS = [
-  { key: "title_present", label: "Title present" },
-  { key: "title_length", label: "Title length" },
-  { key: "meta_description_present", label: "Meta description present" },
-  { key: "meta_description_length", label: "Meta description length" },
-  { key: "h1_count", label: "H1 count" },
-  { key: "alt_coverage_pct", label: "Alt-text coverage", suffix: "%" },
-  { key: "jsonld_present", label: "JSON-LD present" },
-  { key: "page_load_time_ms", label: "Page load time", suffix: " ms" },
-];
+// One cube per signal. Same data keys as before — only the rendering changed.
+// Title/meta pair their present/length signals into a single cube: presence
+// picks the color, length is shown underneath as information.
+function seoCubes(s) {
+  return [
+    {
+      label: "Title",
+      sub: s.title_present ? `${s.title_length} characters` : "Missing",
+      status: s.title_present ? "good" : "bad",
+    },
+    {
+      label: "Meta",
+      sub: s.meta_description_present
+        ? `${s.meta_description_length} characters`
+        : "Missing",
+      status: s.meta_description_present ? "good" : "bad",
+    },
+    {
+      label: "H1 count",
+      value: s.h1_count,
+      status: s.h1_count === 1 ? "good" : s.h1_count === 2 ? "warn" : "bad",
+    },
+    {
+      label: "Alt-text coverage",
+      value: `${s.alt_coverage_pct}%`,
+      status: higherIsBetter(s.alt_coverage_pct, 90, 60),
+    },
+    // Binary: no value at all, the color is the whole answer.
+    { label: "JSON-LD", status: s.jsonld_present ? "good" : "bad" },
+    {
+      label: "Page load time",
+      value: `${Math.round(s.page_load_time_ms)}ms`,
+      status: lowerIsBetter(s.page_load_time_ms, 800, 1500),
+    },
+  ];
+}
 
-export default function SeoOnpageCard({ company, refreshKey }) {
-  const [history, setHistory] = useState([]);
-
-  useEffect(() => {
-    if (!company) return;
-    getHistory(company, "seo_onpage").then(setHistory);
-  }, [company, refreshKey]);
-
+export default function SeoOnpageCard({ history }) {
   const latest = history.length > 0 ? history[history.length - 1] : null;
 
-  const chartData = history
-    .filter((e) => e.status === "ok")
-    .map((e) => ({
-      timestamp: new Date(e.timestamp).toLocaleString(),
-      page_load_time_ms: e.signals.page_load_time_ms ?? 0,
-    }));
-
   return (
-    <section style={{ marginTop: "2rem" }}>
-      <h2>SEO on-page</h2>
+    <section>
+      <div className="band-kicker">SEO on-page</div>
 
-      {!latest && <p>No runs yet. Click "Scan now".</p>}
+      {!latest && <p className="band-note">No runs yet. Click "Scan now".</p>}
 
       {latest && latest.status === "error" && (
-        <p style={{ color: "red" }}>Last run failed: {latest.error_message}</p>
+        <p className="band-note" style={{ color: "var(--status-bad)" }}>
+          Last run failed: {latest.error_message}
+        </p>
       )}
 
       {latest && latest.status === "ok" && (
-        <table style={{ borderCollapse: "collapse" }}>
-          <tbody>
-            {SIGNAL_ROWS.map(({ key, label, suffix }) => (
-              <tr key={key}>
-                <td style={{ padding: "0.25rem 1rem 0.25rem 0", color: "#555" }}>
-                  {label}
-                </td>
-                <td style={{ padding: "0.25rem 0" }}>
-                  {String(latest.signals[key])}
-                  {suffix ?? ""}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      {chartData.length > 1 && (
-        <div>
-          <h3>Page load time over time</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="timestamp" />
-              <YAxis allowDecimals={false} />
-              <Tooltip />
-              <Line type="monotone" dataKey="page_load_time_ms" stroke="#16a34a" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        <CubeGrid>
+          {seoCubes(latest.signals).map((c) => (
+            <Cube key={c.label} {...c} />
+          ))}
+        </CubeGrid>
       )}
     </section>
   );
