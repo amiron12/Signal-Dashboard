@@ -1,8 +1,10 @@
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
+import requests
 from bs4 import BeautifulSoup
 
-from core.fetch import fetch_page
+from core.fetch import fetch, fetch_page
 from core.models import SignalEvent
 from core.receiver import Receiver
 
@@ -42,6 +44,22 @@ def check_jsonld(soup: BeautifulSoup) -> dict:
     return {"jsonld_present": len(jsonld_scripts) > 0}
 
 
+def check_robots_txt(target_url: str) -> dict:
+    """Whether the site publishes a /robots.txt at all. Takes the URL rather
+    than the soup — it's the one check here that makes its own request, which
+    is why it isn't in CHECKS below.
+
+    fetch() and not fetch_page(): robots.txt is the crawl rules themselves,
+    not a page being crawled, so checking robots.txt before reading it would
+    be circular. Same call the sitemap walk in geo_readiness makes."""
+    parsed = urlparse(target_url)
+    try:
+        fetch(f"{parsed.scheme}://{parsed.netloc}/robots.txt")
+        return {"robots_txt_present": True}
+    except requests.HTTPError:
+        return {"robots_txt_present": False}  # a 404 is the answer, not a failure
+
+
 # Add a new signal by writing a function above (soup -> partial signals dict)
 # and appending it here.
 CHECKS = [
@@ -64,6 +82,7 @@ class SeoOnpageReceiver(Receiver):
             signals = {"page_load_time_ms": round(elapsed_ms, 1)}
             for check in CHECKS:
                 signals.update(check(soup))
+            signals.update(check_robots_txt(target_url))
 
             return [
                 SignalEvent(

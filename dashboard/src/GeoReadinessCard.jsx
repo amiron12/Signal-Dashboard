@@ -1,11 +1,4 @@
-import { Cube, CubeGrid, scored } from "./Cube.jsx";
-
-// Binary check: the color is the whole answer, so the cube shows its label
-// only — unless the check failed, which has to say so.
-function binary(label, value) {
-  if (value === null || value === undefined) return { label, value: "unknown" };
-  return { label, status: value ? "good" : "bad" };
-}
+import { Cube, CubeGrid, binary, scored } from "./Cube.jsx";
 
 // The only three Schema.org types this dashboard cares about — the ones
 // answer engines quote. One cube each: did the sampled content pages carry
@@ -24,7 +17,7 @@ function geoCubes(s) {
     scored("Q&A headings", s.faq_headings_sampled, (v) => v, (v) =>
       v >= 1 ? "good" : "bad"
     ),
-    binary("llms.txt present", s.llms_txt_present),
+    binary("llms.txt", s.llms_txt_present),
     binary("Wikipedia entry", s.wikipedia_entry_exists),
     scored("Pages in sitemap", s.sitemap_url_count, (v) => v.toLocaleString()),
     scored("Updated (30d)", s.pages_updated_last_30d, (v) => v.toLocaleString()),

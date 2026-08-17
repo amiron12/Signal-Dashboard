@@ -61,10 +61,19 @@ export function lowerIsBetter(v, good, warn) {
   return v < good ? "good" : v <= warn ? "warn" : "bad";
 }
 
-// A signal is null when its check failed, or when the site genuinely has
-// nothing to report. Either way it reads as unknown and stays uncolored —
-// we don't score a measurement we don't have.
+// A signal is null when its check failed, when the site genuinely has nothing
+// to report, or when the run predates the check existing. Either way it reads
+// as unknown and stays uncolored — we don't score a measurement we don't have,
+// and a red cube must always mean "we looked and it was bad", never "we never
+// looked".
 export function scored(label, value, format, statusFor) {
   if (value === null || value === undefined) return { label, value: "unknown" };
   return { label, value: format(value), status: statusFor?.(value) };
+}
+
+// The binary form of the same rule: the color is the whole answer, so the cube
+// shows its label only — unless we have no measurement, which has to say so.
+export function binary(label, value) {
+  if (value === null || value === undefined) return { label, value: "unknown" };
+  return { label, status: value ? "good" : "bad" };
 }

@@ -1,39 +1,36 @@
-import { Cube, CubeGrid, higherIsBetter, lowerIsBetter } from "./Cube.jsx";
+import { Cube, CubeGrid, binary, scored, higherIsBetter, lowerIsBetter } from "./Cube.jsx";
 
-// One cube per signal. Same data keys as before — only the rendering changed.
 // Title/meta pair their present/length signals into a single cube: presence
-// picks the color, length is shown underneath as information.
+// picks the color, length is shown underneath as information. Absent means we
+// measured the page and found none; a signal we don't have at all is a
+// different statement, and `scored`/`binary` render that as "unknown".
+function pair(label, present, length) {
+  if (present === null || present === undefined) return { label, value: "unknown" };
+  return {
+    label,
+    sub: present ? `${length} characters` : "Missing",
+    status: present ? "good" : "bad",
+  };
+}
+
+// One cube per signal. Every one goes through a helper that handles the
+// missing case, so a cube added later can't paint red on runs that predate it.
 function seoCubes(s) {
   return [
-    {
-      label: "Title",
-      sub: s.title_present ? `${s.title_length} characters` : "Missing",
-      status: s.title_present ? "good" : "bad",
-    },
-    {
-      label: "Meta",
-      sub: s.meta_description_present
-        ? `${s.meta_description_length} characters`
-        : "Missing",
-      status: s.meta_description_present ? "good" : "bad",
-    },
-    {
-      label: "H1 count",
-      value: s.h1_count,
-      status: s.h1_count === 1 ? "good" : s.h1_count === 2 ? "warn" : "bad",
-    },
-    {
-      label: "Alt-text coverage",
-      value: `${s.alt_coverage_pct}%`,
-      status: higherIsBetter(s.alt_coverage_pct, 90, 60),
-    },
+    pair("Title", s.title_present, s.title_length),
+    pair("Meta", s.meta_description_present, s.meta_description_length),
+    scored("H1 count", s.h1_count, (v) => v, (v) =>
+      v === 1 ? "good" : v === 2 ? "warn" : "bad"
+    ),
+    scored("Alt-text coverage", s.alt_coverage_pct, (v) => `${v}%`, (v) =>
+      higherIsBetter(v, 90, 60)
+    ),
     // Binary: no value at all, the color is the whole answer.
-    { label: "JSON-LD", status: s.jsonld_present ? "good" : "bad" },
-    {
-      label: "Page load time",
-      value: `${Math.round(s.page_load_time_ms)}ms`,
-      status: lowerIsBetter(s.page_load_time_ms, 800, 1500),
-    },
+    binary("JSON-LD", s.jsonld_present),
+    binary("robots.txt", s.robots_txt_present),
+    scored("Page load time", s.page_load_time_ms, (v) => `${Math.round(v)}ms`, (v) =>
+      lowerIsBetter(v, 800, 1500)
+    ),
   ];
 }
 
