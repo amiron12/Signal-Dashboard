@@ -15,7 +15,3 @@ receivers:
     enabled: true
     schedule: "0 9 * * *"
     lookback_days: 7
-
-  social_facebook:
-    enabled: false             # optional receiver, off for now
-    schedule: "0 9 * * *"

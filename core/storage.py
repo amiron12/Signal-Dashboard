@@ -1,6 +1,5 @@
 import json
 import sqlite3
-from datetime import datetime
 from pathlib import Path
 
 from .config import load_config
@@ -100,9 +99,7 @@ def save_event(event: SignalEvent) -> None:
         conn.close()
 
 
-def get_history(
-    company: str, receiver: str | None = None, since: datetime | None = None
-) -> list[SignalEvent]:
+def get_history(company: str, receiver: str | None = None) -> list[SignalEvent]:
     conn = _connect()
     try:
         query = "SELECT receiver, company, target_url, timestamp, status, signals, error_message FROM events WHERE company = ?"
@@ -111,9 +108,6 @@ def get_history(
         if receiver is not None:
             query += " AND receiver = ?"
             params.append(receiver)
-        if since is not None:
-            query += " AND timestamp >= ?"
-            params.append(since.isoformat())
 
         query += " ORDER BY timestamp ASC"
 

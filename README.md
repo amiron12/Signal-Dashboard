@@ -110,12 +110,12 @@ dashboard loads all three receivers' histories once, then:
 
 ### Missing data is never faked
 
-A signal that's `null` — check failed, site genuinely has nothing, or the run
-predates the check existing — renders as `unknown` and stays uncolored. A red
-cube always means "we looked and it was bad", never "we never looked". The trend
-chart drops those points rather than plotting them as zero. `Cube.jsx`'s
-`scored()` / `binary()` helpers enforce this, which is why every cube goes
-through one of them.
+A signal that's `null` or absent entirely — check failed, site genuinely has
+nothing, or the run predates the check existing — renders as `unknown` and stays
+uncolored. A red cube always means "we looked and it was bad", never "we never
+looked". The trend chart drops those points rather than plotting them as zero.
+`Cube.jsx`'s `scored()` / `binary()` helpers enforce this, which is why every
+cube goes through one of them.
 
 ### Outbound HTTP etiquette
 
@@ -166,8 +166,8 @@ Signals: `llms_txt_present`, `sitemap_url_count`, `sitemap_files_read`,
 `answer_schema_pages`, `wikipedia_entry_exists`.
 
 Its three sub-checks each make their own requests, so they fail independently: a
-flaky sitemap nulls that group of signals instead of discarding the ones that
-worked.
+flaky sitemap drops that group of signals — which the dashboard shows as
+`unknown` — instead of discarding the ones that worked.
 
 ### `news_mentions`
 
@@ -210,9 +210,9 @@ headline/link/published.
 
 - **`seo_onpage`** — write a `soup -> dict` function and append it to `CHECKS`.
   One function, one line.
-- **`geo_readiness`** — write a `(soup, company, target_url) -> dict` function
-  and append `(func, ["keys", "it", "produces"])` to `CHECKS`. The key list is
-  what gets nulled out if that check throws.
+- **`geo_readiness`** — write a `(company, target_url) -> dict` function and
+  append it to `CHECKS`. If it throws, its keys are simply absent from the
+  event, which the dashboard reads as `unknown`.
 - Then add a `Cube` for it in the matching dashboard card, via `scored()` or
   `binary()` so the missing case is handled.
 
@@ -237,10 +237,18 @@ receivers:
     lookback_days: 7          # receiver-specific option
 ```
 
+Nothing here needs a restart — edit the file, save it, and the next runs use
+the new values:
+
 - `enabled` is read **per `/scan` call**, so toggling it takes effect on the
   next scan with no API restart.
-- `schedule` is read **once at scheduler startup** — restart
-  `python -m core.scheduler` after editing it.
+- The scheduler **re-reads this file every minute**, so an edited `schedule`,
+  `enabled` flag, or receiver option (like `lookback_days`) applies within a
+  minute: the receiver is rescheduled, dropped, or added in place. Receivers
+  you didn't touch keep the run they already had pending.
+- If the file is mid-save or has a typo (a bad cron string, a missing key),
+  the scheduler logs the error and keeps running on the last good config,
+  then picks up the fix on the next reload.
 
 ### Changing the tracked company
 
@@ -266,6 +274,7 @@ or POST the value you want.
 | `SAMPLE_PER_BUCKET` — pages sampled per content type | [receivers/geo_readiness.py](receivers/geo_readiness.py) | 10 total |
 | `CONTENT_TYPES` — path segments that define each bucket | [receivers/geo_readiness.py](receivers/geo_readiness.py) | — |
 | `MISFIRE_GRACE_SECONDS` — how late a missed cron run may still fire | [core/scheduler.py](core/scheduler.py) | 3600 |
+| `RELOAD_SECONDS` — how often the scheduler re-reads `config.yaml` | [core/scheduler.py](core/scheduler.py) | 60 |
 | `DB_PATH` | [core/storage.py](core/storage.py) | `signals.db` |
 | `API_BASE` — where the dashboard looks for the API | [dashboard/src/api.js](dashboard/src/api.js) | `http://localhost:8000` |
 | CORS allowed origin | [api/main.py](api/main.py) | `http://localhost:5173` |
@@ -315,8 +324,9 @@ python -m core.scheduler
 
 It schedules one cron job per enabled receiver and logs each run. It writes to
 the same `signals.db`, so scheduled results show up in the dashboard on its next
-refresh. The API and dashboard work fine without it — `Scan now` covers manual
-use.
+refresh. It re-reads `config/config.yaml` every minute, so you can change a
+schedule while it runs and leave it running. The API and dashboard work fine
+without it — `Scan now` covers manual use.
 
 ### API endpoints
 

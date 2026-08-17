@@ -63,15 +63,10 @@ def _site_root(target_url: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
-def check_schema_types(soup: BeautifulSoup, company: str, target_url: str) -> dict:
+def _schema_types(soup: BeautifulSoup) -> set[str]:
     """Which JSON-LD @type values a page declares (FAQPage, Article, ...).
     Types are what an answer engine keys off, so we collect the values rather
-    than just presence like seo_onpage's jsonld_present.
-
-    No longer a check in its own right: run against the homepage it only ever
-    reported Organization/WebSite/SoftwareApplication, none of which an answer
-    engine can quote. It's now the per-page helper behind
-    `answer_schema_pages`, applied to the sampled content pages instead."""
+    than just presence like seo_onpage's jsonld_present."""
     types = set()
     for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
         try:
@@ -79,7 +74,7 @@ def check_schema_types(soup: BeautifulSoup, company: str, target_url: str) -> di
         except (json.JSONDecodeError, TypeError):
             continue  # one malformed block shouldn't lose the others
         types.update(_collect_types(data))
-    return {"schema_types_found": sorted(types)}
+    return types
 
 
 def _collect_types(data) -> list[str]:
@@ -99,22 +94,17 @@ def _collect_types(data) -> list[str]:
     return found
 
 
-def check_faq_headings(soup: BeautifulSoup, company: str, target_url: str) -> dict:
-    """Headings that read as questions — the shape answer engines quote from.
-
-    Like check_schema_types, this is a per-page helper rather than a check of
-    its own: the homepage is the one page that never carries Q&A, so run
-    there it reported 0 for a site whose /trustcenter/faqs has nine
-    questions. It runs across the sampled content pages instead."""
+def _faq_heading_count(soup: BeautifulSoup) -> int:
+    """Headings that read as questions — the shape answer engines quote from."""
     count = 0
     for heading in soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"]):
         text = heading.get_text(strip=True).lower()
         if text.endswith("?") or any(phrase in text for phrase in FAQ_PHRASES):
             count += 1
-    return {"faq_heading_count": count}
+    return count
 
 
-def check_llms_txt(soup: BeautifulSoup, company: str, target_url: str) -> dict:
+def check_llms_txt(company: str, target_url: str) -> dict:
     """/llms.txt is the emerging convention for telling LLMs what a site is."""
     try:
         fetch_page(f"{_site_root(target_url)}/llms.txt")
@@ -186,7 +176,7 @@ def _parse_lastmods(sitemap: BeautifulSoup) -> list[datetime]:
     return dates
 
 
-def check_sitemap(soup: BeautifulSoup, company: str, target_url: str) -> dict:
+def check_sitemap(company: str, target_url: str) -> dict:
     """Size and freshness of the indexable surface. `pages_updated_last_30d`
     is None when the sitemap carries no <lastmod> at all — that's
     monday.com's case."""
@@ -237,13 +227,13 @@ def _sampled_page_signals(urls: list[str]) -> dict:
             continue  # one dead sampled page shouldn't sink the sample
 
         page = BeautifulSoup(response.content, "html.parser")
-        types = set(check_schema_types(page, "", url)["schema_types_found"])
+        types = _schema_types(page)
         for schema_type in ANSWER_ENGINE_TYPES:
             if schema_type in types:
                 found[schema_type] += 1
         # Every question across the sample, not the number of pages carrying
         # them: one page with nine questions is nine answerable things.
-        faq_headings += check_faq_headings(page, "", url)["faq_heading_count"]
+        faq_headings += _faq_heading_count(page)
 
     return {
         "faq_headings_sampled": faq_headings,
@@ -253,7 +243,7 @@ def _sampled_page_signals(urls: list[str]) -> dict:
     }
 
 
-def check_wikipedia(soup: BeautifulSoup, company: str, target_url: str) -> dict:
+def check_wikipedia(company: str, target_url: str) -> dict:
     """Whether an article titled with the company name exists. MediaWiki
     normalizes the first letter, so "monday.com" finds "Monday.com" — but
     this is an exact-title check, so a company whose article sits under a
@@ -267,24 +257,9 @@ def check_wikipedia(soup: BeautifulSoup, company: str, target_url: str) -> dict:
     return {"wikipedia_entry_exists": not pages[0].get("missing", False)}
 
 
-# Add a signal by writing a function above and appending it here with the
-# keys it produces. Every check takes the same arguments and ignores what it
-# doesn't need; the keys are what gets nulled out if the check fails.
-CHECKS = [
-    (check_llms_txt, ["llms_txt_present"]),
-    (
-        check_sitemap,
-        [
-            "sitemap_url_count",
-            "sitemap_files_read",
-            "sitemap_scan_truncated",
-            "pages_updated_last_30d",
-            "faq_headings_sampled",
-            "answer_schema_pages",
-        ],
-    ),
-    (check_wikipedia, ["wikipedia_entry_exists"]),
-]
+# Add a signal by writing a function above and appending it here. Every check
+# takes the same arguments and ignores what it doesn't need.
+CHECKS = [check_llms_txt, check_sitemap, check_wikipedia]
 
 
 class GeoReadinessReceiver(Receiver):
@@ -292,8 +267,10 @@ class GeoReadinessReceiver(Receiver):
 
     def collect(self, company: str, target_url: str) -> list[SignalEvent]:
         try:
-            response, _elapsed_ms = fetch_page(target_url)
-            soup = BeautifulSoup(response.content, "html.parser")
+            # Fetched for its failure, not its content: no check below reads
+            # the homepage, but an unreachable site should fail the whole run
+            # rather than report on a site that isn't there.
+            fetch_page(target_url)
         except Exception as e:
             return [
                 SignalEvent(
@@ -306,15 +283,16 @@ class GeoReadinessReceiver(Receiver):
                 )
             ]
 
-        # Three of these checks make their own requests, so they fail
-        # independently: a flaky sitemap nulls one signal rather than
-        # discarding the four that worked.
+        # Each check makes its own requests, so they fail independently: a
+        # flaky sitemap drops its own signals rather than discarding the ones
+        # that worked. A dropped key reads as "unknown" on the dashboard,
+        # exactly as an explicit null would.
         signals = {}
-        for check, keys in CHECKS:
+        for check in CHECKS:
             try:
-                signals.update(check(soup, company, target_url))
+                signals.update(check(company, target_url))
             except Exception:
-                signals.update({key: None for key in keys})
+                pass
 
         return [
             SignalEvent(
