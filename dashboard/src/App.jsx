@@ -64,7 +64,7 @@ export default function App() {
   }
 
   return (
-    <div className="wall">
+    <div className={`wall ${scanning ? "scanning" : ""}`}>
       <nav className="nav">
         <div className="nav-brand">Signal Wall</div>
         <form className="nav-form" onSubmit={handleSaveCompany}>
@@ -102,6 +102,13 @@ export default function App() {
       </div>
 
       <TrendSection histories={histories} />
+
+      {scanning && (
+        <div className="scan-overlay">
+          <div className="spinner" />
+          <p className="scan-overlay-text">Scanning…</p>
+        </div>
+      )}
     </div>
   );
 }

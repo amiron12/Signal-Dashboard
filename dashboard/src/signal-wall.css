@@ -73,4 +73,32 @@ button.seg-opt { font-family: var(--font-body); color: inherit; background: tran
   fill: var(--color-neutral-700); font-family: var(--font-body); font-size: 11px;
 }
 
+/* — scanning — a spinner over a scrim, with the wall behind it desaturated.
+   The values underneath are still the previous run's until the new one
+   lands; the scrim is what says so. */
+.scan-overlay {
+  position: fixed; inset: 0; z-index: 10;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--space-3);
+  background: color-mix(in srgb, var(--color-bg) 72%, transparent);
+}
+.spinner {
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 3px solid var(--color-neutral-400);
+  border-top-color: var(--color-accent);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.scan-overlay-text {
+  margin: 0; font-family: var(--font-heading); font-size: 14px;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-neutral-700);
+}
+/* On the content only, not on .wall — a filter there would make the fixed
+   overlay position against the wall instead of the viewport. */
+.scanning .wall-grid, .scanning .trend { filter: grayscale(0.7); }
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 2s; }
+}
+
 .error { color: var(--status-bad); font-size: 13px; margin: 0 var(--space-4); }
