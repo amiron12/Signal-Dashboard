@@ -14,9 +14,12 @@ function schemaTypeCube(type, byType) {
 function geoCubes(s) {
   return [
     ...ANSWER_TYPES.map((t) => schemaTypeCube(t, s.answer_schema_pages)),
-    scored("Q&A headings", s.faq_headings_sampled, (v) => v, (v) =>
-      v >= 1 ? "good" : "bad"
-    ),
+    {
+      ...scored("Q&A headings", s.faq_headings_sampled, (v) => v, (v) =>
+        v >= 1 ? "good" : "bad"
+      ),
+      metric: "faq_headings_sampled",
+    },
     binary("llms.txt", s.llms_txt_present),
     binary("Wikipedia entry", s.wikipedia_entry_exists),
     scored("Pages in sitemap", s.sitemap_url_count, (v) => v.toLocaleString()),
@@ -24,7 +27,7 @@ function geoCubes(s) {
   ];
 }
 
-export default function GeoReadinessCard({ history }) {
+export default function GeoReadinessCard({ history, activeMetric, onToggleMetric }) {
   const latest = history.length > 0 ? history[history.length - 1] : null;
 
   return (
@@ -43,7 +46,12 @@ export default function GeoReadinessCard({ history }) {
         <>
           <CubeGrid>
             {geoCubes(latest.signals).map((c) => (
-              <Cube key={c.label} {...c} />
+              <Cube
+                key={c.label}
+                {...c}
+                activeMetric={activeMetric}
+                onToggleMetric={onToggleMetric}
+              />
             ))}
           </CubeGrid>
 

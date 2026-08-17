@@ -1,7 +1,7 @@
 /* Industry — the design-system tokens and component classes this dashboard
    uses. Trimmed from the full system to only what the Signal Wall renders:
-   the blueprint frame, cards, buttons, inputs, the segmented control and the
-   nav. Everything specific to this screen lives in signal-wall.css. */
+   the blueprint frame, cards, buttons, inputs and the nav. Everything
+   specific to this screen lives in signal-wall.css. */
 @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Barlow+Condensed:wght@400;600&display=swap');
 
 :root {
@@ -95,16 +95,6 @@ img { display: block; max-width: 100%; }
 }
 .input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
 .input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
-.seg {
-  display: inline-flex; overflow: hidden;
-  border: 1px solid var(--color-divider);
-}
-.seg-opt {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 12px; font-size: 13px; cursor: pointer;
-}
-.seg-opt + .seg-opt { border-left: 1px solid var(--color-divider); }
-.seg-opt:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
 
 /* — cards — */
 .card {
@@ -125,6 +115,6 @@ img { display: block; max-width: 100%; }
 }
 
 /* — square corners everywhere: the blueprint look — */
-.card, .btn, .input, .seg { border-radius: 0; }
+.card, .btn, .input { border-radius: 0; }
 .btn { border: 1px solid var(--color-divider); }
 .btn-primary { border-color: var(--color-accent); }

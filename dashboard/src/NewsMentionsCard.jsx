@@ -1,6 +1,6 @@
-import { Corners } from "./Cube.jsx";
+import { ChartToggle, Corners } from "./Cube.jsx";
 
-export default function NewsMentionsCard({ history }) {
+export default function NewsMentionsCard({ history, activeMetric, onToggleMetric }) {
   const latest = history.length > 0 ? history[history.length - 1] : null;
 
   return (
@@ -9,6 +9,16 @@ export default function NewsMentionsCard({ history }) {
 
       <div className="card blueprint">
         <Corners />
+        {/* Not a cube, but the same control in the same corner — the mention
+            count is a signal like any other. */}
+        {latest && latest.status === "ok" && (
+          <ChartToggle
+            metric="mention_count"
+            label="Mentions"
+            activeMetric={activeMetric}
+            onToggleMetric={onToggleMetric}
+          />
+        )}
 
         {!latest && <p className="band-note">No runs yet. Click "Scan now".</p>}
 

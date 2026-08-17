@@ -23,6 +23,19 @@ a:hover { color: var(--color-accent-900); }
 }
 .wall-bands { display: flex; flex-direction: column; gap: var(--space-8); }
 
+/* — last updated — states the freshness of everything below it before you
+   read any of it. Aligned to .wall-grid's padding so it sits on the same
+   left edge as the cubes. */
+.last-updated {
+  display: flex; align-items: baseline; gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) 0;
+}
+.last-updated-label {
+  font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--color-accent-700);
+}
+.last-updated-value { font-size: 13px; color: var(--color-neutral-700); }
+
 /* — cube bands — */
 .band-kicker {
   font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.08em;
@@ -45,6 +58,29 @@ a:hover { color: var(--color-accent-900); }
 .cube-solid .cube-sub { color: rgba(255, 255, 255, 0.85); }
 .cube-solid .cube-value { color: #fff; }
 
+/* — trend toggle — the small chart icon on the six signals that carry one.
+   Sits inside the box's top-right, clear of the blueprint registration marks,
+   which are drawn outside it. The icon takes currentColor rather than its own
+   color, so one button reads correctly on a transparent cube, on a filled
+   status cube, and on the news panel. */
+.chart-toggle {
+  position: absolute; top: 3px; right: 3px; z-index: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; padding: 0;
+  background: transparent; border: 1px solid transparent; border-radius: 0;
+  color: var(--color-neutral-700); cursor: pointer;
+}
+.chart-toggle svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: square; }
+.chart-toggle:hover { color: var(--color-text); border-color: var(--color-divider); }
+.chart-toggle.active { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-bg); }
+.cube-solid .chart-toggle { color: rgba(255, 255, 255, 0.85); }
+.cube-solid .chart-toggle:hover { color: #fff; border-color: rgba(255, 255, 255, 0.5); }
+/* On a filled cube the accent chip would fight the status color, so the open
+   state inverts to white instead. */
+.cube-solid .chart-toggle.active { background: #fff; border-color: #fff; color: var(--color-text); }
+/* Keeps a long label off the icon in the narrowest grid column. */
+.cube-charted .cube-label { padding-right: 18px; }
+
 /* — news panel — */
 .news-count { display: flex; align-items: baseline; gap: var(--space-2); margin-bottom: var(--space-3); }
 .news-count .cube-label { text-transform: none; letter-spacing: 0; }
@@ -57,12 +93,6 @@ a:hover { color: var(--color-accent-900); }
 
 /* — trend — */
 .trend { padding: 0 var(--space-4); }
-.trend-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-2); }
-.trend-head .band-kicker { margin-bottom: 0; }
-/* .seg-opt is written for a label wrapping a radio; these are buttons, so the
-   checked styling comes from .active instead. */
-button.seg-opt { font-family: var(--font-body); color: inherit; background: transparent; border: 0; }
-.seg-opt.active { background: var(--color-accent); color: var(--color-bg); }
 
 /* recharts puts `stroke` on the SVG as a presentation attribute, and those
    can't resolve a var() — so the line takes its accent from here instead.
@@ -95,7 +125,7 @@ button.seg-opt { font-family: var(--font-body); color: inherit; background: tran
 }
 /* On the content only, not on .wall — a filter there would make the fixed
    overlay position against the wall instead of the viewport. */
-.scanning .wall-grid, .scanning .trend { filter: grayscale(0.7); }
+.scanning .last-updated, .scanning .wall-grid, .scanning .trend { filter: grayscale(0.7); }
 
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation-duration: 2s; }

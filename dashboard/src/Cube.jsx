@@ -26,16 +26,51 @@ export function CubeGrid({ children }) {
   return <div className="cube-grid">{children}</div>;
 }
 
-export function Cube({ label, value, sub, status }) {
+// The one control that opens a signal's trend, on the six signals that have
+// one. CSS puts it in the top-right of whatever blueprint box it sits in — a
+// cube here, the news panel there. `metric` is the signal's own key, which is
+// the whole protocol between a box and the chart.
+//
+// aria-pressed already announces open/closed, so the label stays neutral —
+// "Show…" would read as a lie while the chart is open.
+export function ChartToggle({ metric, label, activeMetric, onToggleMetric }) {
+  const active = metric === activeMetric;
+
+  return (
+    <button
+      type="button"
+      className={`chart-toggle ${active ? "active" : ""}`}
+      aria-pressed={active}
+      aria-label={`${label} trend`}
+      title={`${label} trend`}
+      onClick={() => onToggleMetric(metric)}
+    >
+      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+        <path d="M2 1v13h13" />
+        <path d="M4.5 11l3-3.5 2.5 2L14 4" />
+      </svg>
+    </button>
+  );
+}
+
+export function Cube({ label, value, sub, status, metric, activeMetric, onToggleMetric }) {
   const fill = STATUS_FILL[status];
   const labelOnly = value === undefined && sub === undefined;
 
   return (
     <div
-      className={`card blueprint cube ${fill ? "cube-solid" : ""}`}
+      className={`card blueprint cube ${fill ? "cube-solid" : ""} ${metric ? "cube-charted" : ""}`}
       style={fill ? { background: fill, borderColor: fill } : undefined}
     >
       <Corners />
+      {metric && (
+        <ChartToggle
+          metric={metric}
+          label={label}
+          activeMetric={activeMetric}
+          onToggleMetric={onToggleMetric}
+        />
+      )}
       {labelOnly ? (
         <div className="cube-label cube-label-only">{label}</div>
       ) : (
